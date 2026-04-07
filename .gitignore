@@ -133,3 +133,6 @@ dmypy.json
 ~$*
 
 data/
+setup/checkpoints
+setup/logs
+setup/tmp
