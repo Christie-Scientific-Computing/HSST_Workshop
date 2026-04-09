@@ -14,8 +14,9 @@ import segmentation_models_pytorch as smp
 import matplotlib.pyplot as plt
 
 
-structure_names = ['Body', 'Liver', 'Kidneys', 'Spleen', 'Pancreas']
-datapath = Path('/config/teaching/HSST_Workshop/data/FLARE_data/')
+structure_names = ['Body', 'Brainstem', 'Mandible', 'Parotids', 'Spinalcord']
+datapath = Path('/config/teaching/HSST_Workshop/data/HnN_data/')
+im_size = 192 ##Flare data is 256
 
 ## -------------- PRE-PROCESSING ------------
 def getFiles(targetdir:Path):
@@ -30,8 +31,8 @@ def getFiles(targetdir:Path):
 def load_images_and_masks(root_dir: Path):
     fnames = sorted(getFiles(root_dir / 'ims'))
     
-    ims = np.zeros((len(fnames), 256, 256), dtype=np.float32)
-    masks = np.zeros((len(fnames), 256, 256), dtype=np.int64)
+    ims = np.zeros((len(fnames), im_size, im_size), dtype=np.float32)
+    masks = np.zeros((len(fnames), im_size, im_size), dtype=np.int64)
     
     for fdx, fname in enumerate(fnames):
         ims[fdx] = np.load(root_dir / 'ims' / fname)
@@ -111,16 +112,17 @@ class Model(pl.LightningModule):
 def train():
     train_data, test_data = load_data()
     train_transforms = A.Compose([
-        A.Rotate(10),
+        A.Rotate(45),
         A.GaussianBlur(blur_limit=1, sigma_limit=2, p=1),
-        A.CenterCrop(height=128, width=128, p=1),
-        A.Resize(256, 256),
+        A.CenterCrop(height=64, width=64, p=1),
+        A.Resize(im_size, im_size),
+        A.GridElasticDeform(num_grid_xy=[9, 9], magnitude=2, p=1),
         A.Normalize(mean=(np.mean([0.485, 0.456, 0.406])), std=(np.mean([0.229, 0.224, 0.225])))
     ])
     test_transforms = A.Compose([
         A.GaussianBlur(blur_limit=1, sigma_limit=2, p=1),
-        A.CenterCrop(height=128, width=128, p=1),
-        A.Resize(256, 256),
+        A.CenterCrop(height=64, width=64, p=1),
+        A.Resize(im_size, im_size),
         A.Normalize(mean=(np.mean([0.485, 0.456, 0.406])), std=(np.mean([0.229, 0.224, 0.225])))
     ])
 
@@ -142,23 +144,24 @@ def train():
         exit()
 
     checkpoint_callback = ModelCheckpoint(
-        dirpath="checkpoints",          # Folder to save checkpoints
+        dirpath="HnN_checkpoints",          # Folder to save checkpoints
         filename="model-{epoch:02d}-{val_loss:.2f}",  # Naming pattern
         save_top_k=3,                   # Keep only the best 3 models
         monitor="val_loss",             # Metric to monitor
         mode="min",                     # "min" for loss, "max" for accuracy
-        save_last=True                  # Always save the last epoch
+        save_last=True,                  # Always save the last epoch
+        save_weights_only=True
     )
     # Train
     model = Model()
     trainer = pl.Trainer(max_epochs=50, callbacks=[checkpoint_callback], logger=CSVLogger("logs", "test"))
     trainer.fit(
         model, train_dataloader, test_dataloader)
-    trainer.save_checkpoint("new_abdo_model.ckpt")
+    trainer.save_checkpoint("new_HnN_model.ckpt")
 
 def test():
     ## Test model on original data to check degradation
-    model = Model.load_from_checkpoint('./checkpoints/last.ckpt')
+    model = Model.load_from_checkpoint('./HnN_checkpoints/last-v1.ckpt')
     _, test_data = load_data()
     test_transforms = A.Compose([
         # A.GaussianBlur(blur_limit=1, sigma_limit=2, p=1),
@@ -193,6 +196,7 @@ def prep_mask_for_plot(mask):
     return np.where(mask == 1, np.nan, mask)
 
 if __name__ == '__main__':
-    plot_train_input = True
-    train()    
-    #test()
+    plot_train_input = False
+    #train()    
+    
+    test()
