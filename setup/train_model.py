@@ -12,7 +12,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 import segmentation_models_pytorch as smp
 import matplotlib.pyplot as plt
-
+from scipy.ndimage import binary_dilation, binary_erosion, generate_binary_structure
 
 structure_names = ['Body', 'Brainstem', 'Mandible', 'Parotids', 'Spinalcord']
 datapath = Path('/config/teaching/HSST_Workshop/data/HnN_data/')
@@ -28,15 +28,27 @@ def getFiles(targetdir:Path):
         ls.append(fname)
     return ls
 
+def erode_nask(arr):
+    
+    holder= np.zeros_like(arr)
+    struct = generate_binary_structure(2, 2)
+    for val in np.unique(arr):
+        if val == 0: continue
+        msk = np.where(arr==val, 1, 0)
+        msk = binary_erosion(msk, structure=struct, iterations=2)
+        holder[msk] = val
+    return holder
 def load_images_and_masks(root_dir: Path):
     fnames = sorted(getFiles(root_dir / 'ims'))
     
     ims = np.zeros((len(fnames), im_size, im_size), dtype=np.float32)
-    masks = np.zeros((len(fnames), im_size, im_size), dtype=np.int64)
+    masks = np.zeros((len(fnames), im_size, im_size), dtype=np.int8)
     
     for fdx, fname in enumerate(fnames):
         ims[fdx] = np.load(root_dir / 'ims' / fname)
-        masks[fdx] = np.load(root_dir / 'masks' / fname)
+        masks[fdx] = erode_nask(np.load(root_dir / 'masks' / fname))
+
+
     return ims, masks 
 
 def window_level(data, window=350, level=50):
@@ -113,16 +125,16 @@ def train():
     train_data, test_data = load_data()
     train_transforms = A.Compose([
         A.Rotate(45),
-        A.GaussianBlur(blur_limit=1, sigma_limit=2, p=1),
-        A.CenterCrop(height=64, width=64, p=1),
-        A.Resize(im_size, im_size),
-        A.GridElasticDeform(num_grid_xy=[9, 9], magnitude=2, p=1),
+        A.GaussianBlur(blur_limit=2, sigma_limit=2, p=1),
+        #A.CenterCrop(height=120, width=120, p=1),
+        #A.Resize(im_size, im_size),
+        #A.GridElasticDeform(num_grid_xy=[10, 10], magnitude=5, p=1),
         A.Normalize(mean=(np.mean([0.485, 0.456, 0.406])), std=(np.mean([0.229, 0.224, 0.225])))
     ])
     test_transforms = A.Compose([
-        A.GaussianBlur(blur_limit=1, sigma_limit=2, p=1),
-        A.CenterCrop(height=64, width=64, p=1),
-        A.Resize(im_size, im_size),
+        A.GaussianBlur(blur_limit=2, sigma_limit=2, p=1),
+        # A.CenterCrop(height=64, width=64, p=1),
+        # A.Resize(im_size, im_size),
         A.Normalize(mean=(np.mean([0.485, 0.456, 0.406])), std=(np.mean([0.229, 0.224, 0.225])))
     ])
 
@@ -135,6 +147,7 @@ def train():
     if plot_train_input:
         train_img, train_msk = next(iter(train_dataloader))
         train_msk = prep_mask_for_plot(train_msk.numpy())
+        #train_msk = train_msk.numpy()
         fig, ax = plt.subplots()
         ax.imshow(train_img.numpy()[3,...].squeeze(), cmap='Greys_r')
         ax.imshow(train_msk[3,...].squeeze(), alpha=0.5, cmap='jet', vmax=5)
@@ -144,7 +157,7 @@ def train():
         exit()
 
     checkpoint_callback = ModelCheckpoint(
-        dirpath="HnN_checkpoints",          # Folder to save checkpoints
+        dirpath="HnN_checkpoints_blurOnly",          # Folder to save checkpoints
         filename="model-{epoch:02d}-{val_loss:.2f}",  # Naming pattern
         save_top_k=3,                   # Keep only the best 3 models
         monitor="val_loss",             # Metric to monitor
@@ -157,11 +170,11 @@ def train():
     trainer = pl.Trainer(max_epochs=50, callbacks=[checkpoint_callback], logger=CSVLogger("logs", "test"))
     trainer.fit(
         model, train_dataloader, test_dataloader)
-    trainer.save_checkpoint("new_HnN_model.ckpt")
+    trainer.save_checkpoint("blurOnly_HnN_model.ckpt")
 
 def test():
     ## Test model on original data to check degradation
-    model = Model.load_from_checkpoint('./HnN_checkpoints/last-v1.ckpt')
+    model = Model.load_from_checkpoint('./HnN_new_model.ckpt')
     _, test_data = load_data()
     test_transforms = A.Compose([
         # A.GaussianBlur(blur_limit=1, sigma_limit=2, p=1),
@@ -181,9 +194,9 @@ def test():
         mask = prep_mask_for_plot(mask.numpy())
 
         fig, ax = plt.subplots()
-        ax.imshow(img.numpy()[3,...].squeeze(), cmap='gray')
+        ax.imshow(img.numpy()[7,...].squeeze(), cmap='gray')
         #ax.imshow(mask[3,...].squeeze(), cmap='jet', alpha=0.5)
-        ax.imshow(pred[3,...].squeeze(), alpha=0.5, cmap='jet', vmax=5)
+        ax.imshow(pred[7,...].squeeze(), alpha=0.5, cmap='jet', vmax=5)
         ax.invert_yaxis()
         plt.show()
         #fig.savefig('./tmp/train_im.png')
@@ -192,11 +205,12 @@ def test():
 
 def prep_mask_for_plot(mask):
     #mask = mask.astype(np.float32)
+    print(np.unique(mask))
     mask = np.where(mask == 0, np.nan, mask)
     return np.where(mask == 1, np.nan, mask)
 
 if __name__ == '__main__':
     plot_train_input = False
-    #train()    
+    train()    
     
-    test()
+    #test()
