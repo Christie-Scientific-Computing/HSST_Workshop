@@ -29,15 +29,15 @@ def getFiles(targetdir:Path):
     return ls
 
 def erode_nask(arr):
-    
     holder= np.zeros_like(arr)
     struct = generate_binary_structure(2, 2)
     for val in np.unique(arr):
         if val == 0: continue
         msk = np.where(arr==val, 1, 0)
-        msk = binary_erosion(msk, structure=struct, iterations=2)
+        msk = binary_erosion(msk, structure=struct, iterations=1)
         holder[msk] = val
     return holder
+
 def load_images_and_masks(root_dir: Path):
     fnames = sorted(getFiles(root_dir / 'ims'))
     
@@ -149,15 +149,15 @@ def train():
         train_msk = prep_mask_for_plot(train_msk.numpy())
         #train_msk = train_msk.numpy()
         fig, ax = plt.subplots()
-        ax.imshow(train_img.numpy()[3,...].squeeze(), cmap='Greys_r')
-        ax.imshow(train_msk[3,...].squeeze(), alpha=0.5, cmap='jet', vmax=5)
+        ax.imshow(train_img.numpy()[7,...].squeeze(), cmap='Greys_r')
+        ax.imshow(train_msk[7,...].squeeze(), alpha=0.5, cmap='jet', vmax=5)
         ax.invert_yaxis()
         plt.show()
         #fig.savefig('./tmp/train_im.png')
         exit()
 
     checkpoint_callback = ModelCheckpoint(
-        dirpath="HnN_checkpoints_blurOnly",          # Folder to save checkpoints
+        dirpath="HnN_checkpoints_erodeOneIter",          # Folder to save checkpoints
         filename="model-{epoch:02d}-{val_loss:.2f}",  # Naming pattern
         save_top_k=3,                   # Keep only the best 3 models
         monitor="val_loss",             # Metric to monitor
@@ -170,7 +170,7 @@ def train():
     trainer = pl.Trainer(max_epochs=50, callbacks=[checkpoint_callback], logger=CSVLogger("logs", "test"))
     trainer.fit(
         model, train_dataloader, test_dataloader)
-    trainer.save_checkpoint("blurOnly_HnN_model.ckpt")
+    trainer.save_checkpoint("HnN_erodeOneIter.ckpt")
 
 def test():
     ## Test model on original data to check degradation
@@ -211,6 +211,6 @@ def prep_mask_for_plot(mask):
 
 if __name__ == '__main__':
     plot_train_input = False
-    train()    
+    #train()    
     
-    #test()
+    test()
