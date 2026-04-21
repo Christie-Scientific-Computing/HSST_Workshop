@@ -7,12 +7,12 @@
 
 ## Part 2:
 <a target="_blank" href="https://colab.research.google.com/github/Christie-Scientific-Computing/HSST_Workshop/blob/main/Part_2_head_and_neck_autoseg.ipynb">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open Notebook 1 In Colab"/>
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open Notebook 2 In Colab"/>
 </a>
 
 ## Part 3:
 <a target="_blank" href="https://colab.research.google.com/github/Christie-Scientific-Computing/HSST_Workshop/blob/main/Part_3_version_changes.ipynb">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open Notebook 1 In Colab"/>
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open Notebook 3 In Colab"/>
 </a>
 
 
